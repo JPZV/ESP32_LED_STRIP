@@ -3,6 +3,6 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := led_strip
+#PROJECT_NAME := led_strip
 
-include $(IDF_PATH)/make/project.mk
+#include $(IDF_PATH)/make/project.mk
