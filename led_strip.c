@@ -20,12 +20,16 @@
 
 #include <string.h>
 
-#define LED_STRIP_TASK_SIZE             2048
+#define LED_STRIP_TASK_SIZE             configMINIMAL_STACK_SIZE
 #define LED_STRIP_TASK_PRIORITY         (configMAX_PRIORITIES - 1)
 
 #define LED_STRIP_REFRESH_PERIOD_MS     (30U) // TODO: add as parameter to led_strip_init
+#define EFFECT_CHANGE_CHECK_PERIOD_MS	(500U)//Period to check the effect parameters has changed
 
 #define LED_STRIP_NUM_RMT_ITEMS_PER_LED (24U) // Assumes 24 bit color for each led
+
+#define LED_STRIP_EFFECT_TASK_SIZE     	2048
+#define LED_STRIP_EFFECT_TASK_PRIORITY 	(configMAX_PRIORITIES - 2)
 
 // RMT Clock source is @ 80 MHz. Dividing it by 8 gives us 10 MHz frequency, or 100ns period.
 #define LED_STRIP_RMT_CLK_DIV (8)
@@ -56,6 +60,8 @@
 
 // Function pointer for generating waveforms based on different LED drivers
 typedef void (*led_fill_rmt_items_fn)(struct led_color_t *led_strip_buf, rmt_item32_t *rmt_items, uint32_t led_strip_length);
+
+
 
 static inline void led_strip_fill_item_level(rmt_item32_t* item, int high_ticks, int low_ticks)
 {
@@ -343,6 +349,8 @@ bool led_strip_init(struct led_strip_t *led_strip)
         return false;
     }
 
+    led_strip_effect_task_handle = NULL;
+
     return true;
 }
 
@@ -445,5 +453,82 @@ bool led_strip_clear(struct led_strip_t *led_strip)
         memset(led_strip->led_strip_buf_1, 0, sizeof(struct led_color_t) * led_strip->led_strip_length);
     }
 
+    if(led_strip_effect_task_handle != NULL)							//Check if the effect task is executing
+	{
+		vTaskDelete(led_strip_effect_task_handle);
+		led_strip_effect_task_handle = NULL;
+	}
+
     return success;
+}
+
+static void led_strip_effect_task(void *arg)
+{
+    struct led_strip_effect_t *led_strip_effect = (struct led_strip_effect_t *)arg;
+
+    while(true)
+    {
+		switch (led_strip_effect->effect_type) {
+			case FADE_IN_OFF:
+
+				break;
+			default:
+				led_strip_effect->new_led_strip_effect_t = false;
+				while(!led_strip_effect->new_led_strip_effect_t){
+					for (uint16_t index = 0; index < led_strip_effect->led_strip->led_strip_length; index++) {
+						led_strip_set_pixel_color(led_strip_effect->led_strip, index, led_strip_effect->effect_color);
+					}
+					led_strip_show(led_strip_effect->led_strip);
+					//FIXME: when static, it could be possible to delete the task. Check for it.
+					vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
+				}
+				break;
+		};
+		vTaskDelay(EFFECT_CHANGE_CHECK_PERIOD_MS / portTICK_PERIOD_MS);
+    }
+
+    vTaskDelete(NULL);
+}
+
+/**
+  * @brief     	Initialize task to create pre-defined effects
+  *
+  * @param 		led_strip_effect pointer to LED effect context
+  * @param 		effect_type enum for pre-defined effects
+  * @param 		effect_speed overall effect speed (based on visual effect for each pre-defined effect)
+  * @param 		led_color overall color of the effect
+  *
+  * @return
+  *      -ESP_OK 	On success
+  *      -ESP_FAIL 	Generic code indicating failure
+  *
+  **/
+esp_err_t led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effect_type_t effect_type, struct led_color_t *effect_color, uint8_t effect_speed)
+{
+	if(led_strip_effect_task_handle == NULL)							//Check if the effect task is executing
+	{
+		led_strip_effect->new_led_strip_effect_t = true;
+		led_strip_effect->effect_type = effect_type;
+		led_strip_effect->speed = effect_speed;
+		led_strip_effect->effect_color = effect_color;
+		if (xTaskCreate(led_strip_effect_task,
+						"strip_effect",
+						LED_STRIP_EFFECT_TASK_SIZE,
+						led_strip_effect,
+						10,
+						&led_strip_effect_task_handle)
+		!= pdTRUE){
+			return ESP_FAIL;
+		}
+	}
+
+    if(led_strip_effect->effect_type != effect_type){
+    	led_strip_effect->new_led_strip_effect_t = true;
+    	led_strip_effect->effect_type = effect_type;
+    }
+    led_strip_effect->speed = effect_speed;
+	led_strip_effect->effect_color = effect_color;
+
+
+	return ESP_OK;
 }
