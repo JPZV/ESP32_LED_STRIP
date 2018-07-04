@@ -23,11 +23,12 @@ extern "C" {
 #include <stddef.h>
 
 typedef enum effect_type_t {
-    BLINK = 0,
+    RGB = 0,
     FADE_IN_OFF,
     ON_FADE_OFF,
     BORDER_TO_CENTER,
 	CENTER_TO_BORDER,
+	COLOR,
 	NONE,
 }effect_type_t;
 
@@ -37,6 +38,13 @@ enum rgb_led_type_t {
     RGB_LED_TYPE_APA106 = 2,
 
     RGB_LED_TYPE_MAX,
+};
+
+
+enum rgb_effect_states_t{
+    ALL_RED,
+    ALL_GREEN,
+    ALL_BLUE,
 };
 
 /**
@@ -56,6 +64,7 @@ struct led_strip_t {
     bool showing_buf_1;												// Double buffering elements
     struct led_color_t *led_strip_buf_1;
     struct led_color_t *led_strip_buf_2; 
+
     SemaphoreHandle_t access_semaphore;
 };
 
@@ -67,7 +76,7 @@ struct led_strip_effect_t {
     bool new_led_strip_effect_t;
 };
 
-TaskHandle_t led_strip_effect_task_handle;
+extern TaskHandle_t led_strip_effect_task_handle;
 
 bool led_strip_init(struct led_strip_t *led_strip);
 

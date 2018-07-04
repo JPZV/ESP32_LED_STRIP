@@ -61,8 +61,6 @@
 // Function pointer for generating waveforms based on different LED drivers
 typedef void (*led_fill_rmt_items_fn)(struct led_color_t *led_strip_buf, rmt_item32_t *rmt_items, uint32_t led_strip_length);
 
-
-
 static inline void led_strip_fill_item_level(rmt_item32_t* item, int high_ticks, int low_ticks)
 {
     item->level0 = 1;
@@ -447,17 +445,21 @@ bool led_strip_clear(struct led_strip_t *led_strip)
         return false;
     }
 
-    if (led_strip->showing_buf_1) {
-        memset(led_strip->led_strip_buf_2, 0, sizeof(struct led_color_t) * led_strip->led_strip_length);
-    } else {
-        memset(led_strip->led_strip_buf_1, 0, sizeof(struct led_color_t) * led_strip->led_strip_length);
-    }
-
     if(led_strip_effect_task_handle != NULL)							//Check if the effect task is executing
 	{
 		vTaskDelete(led_strip_effect_task_handle);
 		led_strip_effect_task_handle = NULL;
+		vTaskDelay(100/portTICK_RATE_MS);
 	}
+
+    if (led_strip->showing_buf_1) {
+        memset(led_strip->led_strip_buf_2, 0, sizeof(struct led_color_t) * led_strip->led_strip_length);
+
+    } else {
+        memset(led_strip->led_strip_buf_1, 0, sizeof(struct led_color_t) * led_strip->led_strip_length);
+    }
+
+	led_strip_show(led_strip);
 
     return success;
 }
@@ -465,14 +467,39 @@ bool led_strip_clear(struct led_strip_t *led_strip)
 static void led_strip_effect_task(void *arg)
 {
     struct led_strip_effect_t *led_strip_effect = (struct led_strip_effect_t *)arg;
+    enum rgb_effect_states_t rgb_effect_state = 0;
 
     while(true)
     {
 		switch (led_strip_effect->effect_type) {
-			case FADE_IN_OFF:
-
+			case RGB:
+				led_strip_effect->new_led_strip_effect_t = false;
+				while(!led_strip_effect->new_led_strip_effect_t){
+					switch(rgb_effect_state){
+						case ALL_RED:
+							led_strip_effect->effect_color->blue = 0;
+							led_strip_effect->effect_color->red = 255;
+							rgb_effect_state++;
+							break;
+						case ALL_GREEN:
+							led_strip_effect->effect_color->red = 0;
+							led_strip_effect->effect_color->green = 255;
+							rgb_effect_state++;
+							break;
+						case ALL_BLUE:
+							led_strip_effect->effect_color->green = 0;
+							led_strip_effect->effect_color->blue = 255;
+							rgb_effect_state=ALL_RED;
+							break;
+					}
+					for (uint16_t index = 0; index < led_strip_effect->led_strip->led_strip_length; index++) {
+						led_strip_set_pixel_color(led_strip_effect->led_strip, index, led_strip_effect->effect_color);
+					}
+					led_strip_show(led_strip_effect->led_strip);
+					vTaskDelay((10000-39*led_strip_effect->speed)/portTICK_RATE_MS);
+				}
 				break;
-			default:
+			case COLOR:
 				led_strip_effect->new_led_strip_effect_t = false;
 				while(!led_strip_effect->new_led_strip_effect_t){
 					for (uint16_t index = 0; index < led_strip_effect->led_strip->led_strip_length; index++) {
@@ -483,6 +510,10 @@ static void led_strip_effect_task(void *arg)
 					vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
 				}
 				break;
+
+			default:
+			    vTaskDelete(NULL);
+				break;
 		};
 		vTaskDelay(EFFECT_CHANGE_CHECK_PERIOD_MS / portTICK_PERIOD_MS);
     }
@@ -490,6 +521,7 @@ static void led_strip_effect_task(void *arg)
     vTaskDelete(NULL);
 }
 
+TaskHandle_t led_strip_effect_task_handle = NULL;
 /**
   * @brief     	Initialize task to create pre-defined effects
   *
