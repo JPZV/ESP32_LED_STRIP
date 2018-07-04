@@ -510,12 +510,25 @@ static void led_strip_effect_task(void *arg)
 					vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
 				}
 				break;
+			case CLEAR:
+				led_strip_effect->new_led_strip_effect_t = false;
+				while(!led_strip_effect->new_led_strip_effect_t){
+					led_strip_effect->effect_color->red = 0;
+					led_strip_effect->effect_color->green = 0;
+					led_strip_effect->effect_color->blue = 0;
+					for (uint16_t index = 0; index < led_strip_effect->led_strip->led_strip_length; index++) {
+						led_strip_set_pixel_color(led_strip_effect->led_strip, index, led_strip_effect->effect_color);
+					}
+					led_strip_show(led_strip_effect->led_strip);
+					vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
+				}
+				break;
 
 			default:
-			    vTaskDelete(NULL);
+				vTaskDelete(NULL);
 				break;
 		};
-		vTaskDelay(EFFECT_CHANGE_CHECK_PERIOD_MS / portTICK_PERIOD_MS);
+		vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
     }
 
     vTaskDelete(NULL);
@@ -528,26 +541,31 @@ TaskHandle_t led_strip_effect_task_handle = NULL;
   * @param 		led_strip_effect pointer to LED effect context
   * @param 		effect_type enum for pre-defined effects
   * @param 		effect_speed overall effect speed (based on visual effect for each pre-defined effect)
-  * @param 		led_color overall color of the effect
+  * @param 		red color of effect from 0 to 255
+  * @param 		green color of effect from 0 to 255
+  * @param 		blue color of effect from 0 to 255
   *
   * @return
   *      -ESP_OK 	On success
   *      -ESP_FAIL 	Generic code indicating failure
   *
   **/
-esp_err_t led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effect_type_t effect_type, struct led_color_t *effect_color, uint8_t effect_speed)
+esp_err_t led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effect_type_t effect_type, uint8_t red, uint8_t green, uint8_t blue, uint8_t effect_speed)
 {
+	led_strip_effect->effect_color->red = red;
+	led_strip_effect->effect_color->green = green;
+	led_strip_effect->effect_color->blue = blue;
+    led_strip_effect->speed = effect_speed;
+
 	if(led_strip_effect_task_handle == NULL)							//Check if the effect task is executing
 	{
 		led_strip_effect->new_led_strip_effect_t = true;
 		led_strip_effect->effect_type = effect_type;
-		led_strip_effect->speed = effect_speed;
-		led_strip_effect->effect_color = effect_color;
 		if (xTaskCreate(led_strip_effect_task,
 						"strip_effect",
 						LED_STRIP_EFFECT_TASK_SIZE,
 						led_strip_effect,
-						10,
+						LED_STRIP_TASK_PRIORITY-1,
 						&led_strip_effect_task_handle)
 		!= pdTRUE){
 			return ESP_FAIL;
@@ -558,9 +576,6 @@ esp_err_t led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effe
     	led_strip_effect->new_led_strip_effect_t = true;
     	led_strip_effect->effect_type = effect_type;
     }
-    led_strip_effect->speed = effect_speed;
-	led_strip_effect->effect_color = effect_color;
-
 
 	return ESP_OK;
 }

@@ -51,6 +51,7 @@ esp_err_t initialize_LED(void)
 	led_strip.access_semaphore = xSemaphoreCreateBinary();
 
 	led_strip_effect.led_strip = &led_strip;
+	led_strip_effect.effect_color = &led_effect_color;
 
 	//TODO: turn led_strip_init return into a esp_err_t indicating ESP-IDF error code
 	if(!led_strip_init(led_strip_effect.led_strip)){
@@ -66,7 +67,7 @@ void main_led_task(void *pv)
 	led_effect_color.green = 0;
 	led_effect_color.blue = 0;
 	while(true){
-		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip_effect, RGB, &led_effect_color, 255) );	//Set RGB rounding effect at max speed
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip_effect, RGB, led_effect_color.red, led_effect_color.green, led_effect_color.blue, 255) );	//Set RGB rounding effect at max speed
 		vTaskDelay(6000 / portTICK_PERIOD_MS);														//Wait for 6s
 		led_strip_clear(led_strip_effect.led_strip);												//Clear LED Strip
 		vTaskDelay(6000 / portTICK_PERIOD_MS);														//Wait for 6s
@@ -74,8 +75,10 @@ void main_led_task(void *pv)
 		led_effect_color.red = 55;
 		led_effect_color.green = 55;
 		led_effect_color.blue = 55;
-		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip_effect, COLOR, &led_effect_color, 200) );	//Set white color
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip_effect, RGB, led_effect_color.red, led_effect_color.green, led_effect_color.blue, 255) );	//Set white color
 		vTaskDelay(6000 / portTICK_PERIOD_MS);														//Wait for 6s
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip_effect, CLEAR, led_effect_color.red, led_effect_color.green, led_effect_color.blue, 255) );	//Set white color
+		vTaskDelay(2000 / portTICK_PERIOD_MS);														//Wait for 2s
 	}
 }
 

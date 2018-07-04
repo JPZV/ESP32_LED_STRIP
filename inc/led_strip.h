@@ -29,6 +29,7 @@ typedef enum effect_type_t {
     BORDER_TO_CENTER,
 	CENTER_TO_BORDER,
 	COLOR,
+	CLEAR,
 	NONE,
 }effect_type_t;
 
@@ -111,14 +112,16 @@ bool led_strip_clear(struct led_strip_t *led_strip);
   * @param 		led_strip_effect pointer to LED effect context
   * @param 		effect_type enum for pre-defined effects
   * @param 		effect_speed overall effect speed (based on visual effect for each pre-defined effect)
-  * @param 		led_color overall color of the effect
+  * @param 		red color of effect from 0 to 255
+  * @param 		green color of effect from 0 to 255
+  * @param 		blue color of effect from 0 to 255
   *
   * @return
   *      -ESP_OK 	On success
   *      -ESP_FAIL 	Generic code indicating failure
   *
   **/
-esp_err_t led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effect_type_t effect_type, struct led_color_t *effect_color, uint8_t effect_speed);
+esp_err_t led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effect_type_t effect_type, uint8_t red, uint8_t green, uint8_t blue, uint8_t effect_speed);
 
 #ifdef __cplusplus
 }
