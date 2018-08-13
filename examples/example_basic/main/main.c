@@ -51,7 +51,6 @@ esp_err_t initialize_LED(void)
 	led_strip.access_semaphore = xSemaphoreCreateBinary();
 
 	led_strip_effect.led_strip = &led_strip;
-	led_strip_effect.effect_color = &led_effect_color;
 
 	//TODO: turn led_strip_init return into a esp_err_t indicating ESP-IDF error code
 	if(!led_strip_init(led_strip_effect.led_strip)){

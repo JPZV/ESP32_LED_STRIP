@@ -16,9 +16,6 @@
     ------------------------------------------------------------------------- */
 
 #include "led_strip.h"
-#include "freertos/task.h"
-
-#include <string.h>
 
 #define LED_STRIP_TASK_SIZE             configMINIMAL_STACK_SIZE
 #define LED_STRIP_TASK_PRIORITY         (configMAX_PRIORITIES - 1)
@@ -57,6 +54,8 @@
 #define LED_STRIP_RMT_TICKS_BIT_1_LOW_APA106   3 // 350ns +/- 150ns per datasheet
 #define LED_STRIP_RMT_TICKS_BIT_0_HIGH_APA106  3 // 350ns +/- 150ns per datasheet
 #define LED_STRIP_RMT_TICKS_BIT_0_LOW_APA106  14 // 1.36us +/- 150ns per datasheet
+
+const char *TAG = "LED_STRIP";
 
 // Function pointer for generating waveforms based on different LED drivers
 typedef void (*led_fill_rmt_items_fn)(struct led_color_t *led_strip_buf, rmt_item32_t *rmt_items, uint32_t led_strip_length);
@@ -464,77 +463,208 @@ bool led_strip_clear(struct led_strip_t *led_strip)
     return success;
 }
 
+
+
+
 static void led_strip_effect_task(void *arg)
 {
-    struct led_strip_effect_t *led_strip_effect = (struct led_strip_effect_t *)arg;
-    enum rgb_effect_states_t rgb_effect_state = 0;
+    struct led_strip_effect_t led_strip_effect, received_led_strip_effect_from_queue;
+	int data_received;
+	struct effect_rgb_args_t *effect_rgb_args = NULL;
+	struct effect_static_color_args_t *effect_static_color_args = NULL;
+	struct effect_timed_fade_in_off_args_t *effect_timed_fade_in_off_args = NULL;
+	struct led_color_t effect_color;
+
+	memset(&led_strip_effect, 0, sizeof(struct led_strip_effect_t));
+	memset(&received_led_strip_effect_from_queue, 0, sizeof(struct led_strip_effect_t));
 
     while(true)
     {
-		switch (led_strip_effect->effect_type) {
-			case RGB:
-				led_strip_effect->new_led_strip_effect_t = false;
-				while(!led_strip_effect->new_led_strip_effect_t){
-					switch(rgb_effect_state){
+    	/* If it has received new data from queue, free args from all effects */
+        if( (data_received = xQueueReceive(effect_queue_handle, &received_led_strip_effect_from_queue, 0)) == pdTRUE )
+        {
+        	/* check if there is any difference between current led_strip_effect and received_led_strip_effect_from_queue */
+        	if( memcmp(&led_strip_effect, &received_led_strip_effect_from_queue, sizeof(struct led_strip_effect_t)) != 0)
+        	{
+        		ESP_LOGI(TAG, "New effect data available!");
+        		memcpy(&led_strip_effect, &received_led_strip_effect_from_queue, sizeof(struct led_strip_effect_t));
+        		/* If so, refresh effect configuration */
+        		switch (led_strip_effect.effect_type) {
+					case RGB:
+						effect_rgb_args = (struct effect_rgb_args_t *)led_strip_effect.effect_args;
+						ESP_LOGD(TAG, "Effect: RGB. Speed = %d", effect_rgb_args->speed);
+						break;
+					case COLOR:
+						effect_static_color_args = (struct effect_static_color_args_t *)led_strip_effect.effect_args;
+						ESP_LOGD(TAG, "Effect: Static Color. Color = %d,%d,%d"
+								,effect_static_color_args->effect_color.red
+								,effect_static_color_args->effect_color.green
+								,effect_static_color_args->effect_color.blue);
+						break;
+					case TIMED_FADE_IN_OFF:
+						effect_timed_fade_in_off_args = (struct effect_timed_fade_in_off_args_t *)led_strip_effect.effect_args;
+						ESP_LOGD(TAG, "Effect: TIMED_FADE_IN_OFF.\n Color = %d,%d,%d\n Fade In Time = %d\n Counter: %d"
+								,effect_timed_fade_in_off_args->effect_color.red
+								,effect_timed_fade_in_off_args->effect_color.green
+								,effect_timed_fade_in_off_args->effect_color.blue
+								,effect_timed_fade_in_off_args->fade_in_speed
+								,effect_timed_fade_in_off_args->counter);
+						break;
+					case CLEAR:
+						break;
+
+					default:
+						break;
+				};
+
+        	}
+        }else /*Otherwise, if there is no new data on Queue, */
+        {
+
+			switch (led_strip_effect.effect_type) {
+				case RGB:
+					switch(effect_rgb_args->rgb_effect_state)
+					{
 						case ALL_RED:
-							led_strip_effect->effect_color->blue = 0;
-							led_strip_effect->effect_color->red = 255;
-							rgb_effect_state++;
+							effect_color.red = 255;
+							effect_color.green = 0;
+							effect_color.blue = 0;
+							effect_rgb_args->rgb_effect_state++;
 							break;
 						case ALL_GREEN:
-							led_strip_effect->effect_color->red = 0;
-							led_strip_effect->effect_color->green = 255;
-							rgb_effect_state++;
+							effect_color.red = 0;
+							effect_color.green = 255;
+							effect_color.blue = 0;
+							effect_rgb_args->rgb_effect_state++;
 							break;
 						case ALL_BLUE:
-							led_strip_effect->effect_color->green = 0;
-							led_strip_effect->effect_color->blue = 255;
-							rgb_effect_state=ALL_RED;
+							effect_color.red = 0;
+							effect_color.green = 0;
+							effect_color.blue = 255;
+							effect_rgb_args->rgb_effect_state=ALL_RED;
+							break;
+						default:
+							effect_rgb_args->rgb_effect_state=ALL_RED;
 							break;
 					}
-					for (uint16_t index = 0; index < led_strip_effect->led_strip->led_strip_length; index++) {
-						led_strip_set_pixel_color(led_strip_effect->led_strip, index, led_strip_effect->effect_color);
+					for (uint16_t index = 0; index < led_strip_effect.led_strip->led_strip_length; index++) {
+						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_color);
 					}
-					led_strip_show(led_strip_effect->led_strip);
-					vTaskDelay((10000-39*led_strip_effect->speed)/portTICK_RATE_MS);
-				}
-				break;
-			case COLOR:
-				led_strip_effect->new_led_strip_effect_t = false;
-				while(!led_strip_effect->new_led_strip_effect_t){
-					for (uint16_t index = 0; index < led_strip_effect->led_strip->led_strip_length; index++) {
-						led_strip_set_pixel_color(led_strip_effect->led_strip, index, led_strip_effect->effect_color);
-					}
-					led_strip_show(led_strip_effect->led_strip);
-					//FIXME: when static, it could be possible to delete the task. Check for it.
-					vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
-				}
-				break;
-			case CLEAR:
-				led_strip_effect->new_led_strip_effect_t = false;
-				while(!led_strip_effect->new_led_strip_effect_t){
-					led_strip_effect->effect_color->red = 0;
-					led_strip_effect->effect_color->green = 0;
-					led_strip_effect->effect_color->blue = 0;
-					for (uint16_t index = 0; index < led_strip_effect->led_strip->led_strip_length; index++) {
-						led_strip_set_pixel_color(led_strip_effect->led_strip, index, led_strip_effect->effect_color);
-					}
-					led_strip_show(led_strip_effect->led_strip);
-					vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
-				}
-				break;
+					led_strip_show(led_strip_effect.led_strip);
+					vTaskDelay((10000-39*effect_rgb_args->speed)/portTICK_RATE_MS);
 
-			default:
-				vTaskDelete(NULL);
-				break;
-		};
-		vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
+					break;
+				case COLOR:
+					for (uint16_t index = 0; index < led_strip_effect.led_strip->led_strip_length; index++) {
+						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_static_color_args->effect_color);
+					}
+					led_strip_show(led_strip_effect.led_strip);
+					break;
+				case TIMED_FADE_IN_OFF:
+					if( effect_timed_fade_in_off_args->effect_color.red > effect_timed_fade_in_off_args->effect_color.green){
+						if( effect_timed_fade_in_off_args->effect_color.red > effect_timed_fade_in_off_args->effect_color.blue)
+						{
+							effect_timed_fade_in_off_args->step_counter = effect_timed_fade_in_off_args->effect_color.red;
+						}else
+						{
+							effect_timed_fade_in_off_args->step_counter = effect_timed_fade_in_off_args->effect_color.blue;
+						}
+					}else
+					{
+						if( effect_timed_fade_in_off_args->effect_color.green > effect_timed_fade_in_off_args->effect_color.blue)
+						{
+							effect_timed_fade_in_off_args->step_counter = effect_timed_fade_in_off_args->effect_color.green;
+						}else
+						{
+							effect_timed_fade_in_off_args->step_counter = effect_timed_fade_in_off_args->effect_color.blue;
+						}
+					}
+
+
+					for (uint16_t index = 0; index < led_strip_effect.led_strip->led_strip_length; index++) {
+						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_timed_fade_in_off_args->step_color);
+					}
+					led_strip_show(led_strip_effect.led_strip);
+					break;
+				case CLEAR:
+					memset(&effect_color, 0, sizeof(struct led_color_t));
+					for (uint16_t index = 0; index < led_strip_effect.led_strip->led_strip_length; index++) {
+						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_color);
+					}
+					led_strip_show(led_strip_effect.led_strip);
+					break;
+
+				default:
+					vTaskDelete(NULL);
+					break;
+			};
+			vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
+        }
     }
 
     vTaskDelete(NULL);
 }
 
 TaskHandle_t led_strip_effect_task_handle = NULL;
+xQueueHandle effect_queue_handle = NULL;
+
+/**
+  * @brief     	Initialize task to handle LED strip effects
+  *
+  * @param 		pointer to led_strip strucutre
+  * @param 		effect_type enum for pre-defined effects
+  * @param 		arguments of the effect type
+  *
+  * @return
+  *      -ESP_OK 	On success
+  *      -ESP_FAIL 	Generic code indicating failure
+  *      -ESP_ERR_INVALID_STATE if task (and led strip) has been already initialized
+  *
+  **/
+esp_err_t led_strip_init_effect_handler(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg)
+{
+	struct led_strip_effect_t initial_led_strip_effect;
+	esp_err_t ret = ESP_OK;
+	if( (effect_queue_handle = xQueueCreate(10, sizeof(struct led_strip_effect_t))) == pdFALSE )
+	{
+		ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
+		return ret = ESP_FAIL;
+	}
+
+	initial_led_strip_effect.led_strip = led_strip;
+	initial_led_strip_effect.effect_type = effect_type;
+	initial_led_strip_effect.effect_args = effect_arg;
+
+	if( xQueueSend( effect_queue_handle, ( void * ) &initial_led_strip_effect, ( TickType_t ) 0 ) != pdPASS )
+	{
+		ret = ESP_FAIL;
+		ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
+		return ret;
+	}
+
+	if(led_strip_effect_task_handle == NULL)							//Check if the effect task is executing
+	{
+		if (xTaskCreate(led_strip_effect_task,
+						"led_strip_effect_task",
+						LED_STRIP_EFFECT_TASK_SIZE,
+						NULL,
+						LED_STRIP_TASK_PRIORITY-1,
+						&led_strip_effect_task_handle)
+		!= pdTRUE)
+		{
+			ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
+			return ret = ESP_FAIL;
+			//FIXME: if task fails to initialize, clear queue before returning
+		}
+	}else
+	{
+		ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
+		return ret = ESP_ERR_INVALID_STATE;
+	}
+
+	return ESP_OK;
+}
+
 /**
   * @brief     	Initialize task to create pre-defined effects
   *
@@ -550,32 +680,23 @@ TaskHandle_t led_strip_effect_task_handle = NULL;
   *      -ESP_FAIL 	Generic code indicating failure
   *
   **/
-esp_err_t led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effect_type_t effect_type, uint8_t red, uint8_t green, uint8_t blue, uint8_t effect_speed)
+esp_err_t led_strip_set_effect(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg)
 {
-	led_strip_effect->effect_color->red = red;
-	led_strip_effect->effect_color->green = green;
-	led_strip_effect->effect_color->blue = blue;
-    led_strip_effect->speed = effect_speed;
 
-	if(led_strip_effect_task_handle == NULL)							//Check if the effect task is executing
+	struct led_strip_effect_t led_strip_effect;
+	esp_err_t ret = ESP_OK;
+
+	led_strip_effect.led_strip = led_strip;
+	led_strip_effect.effect_type = effect_type;
+	led_strip_effect.effect_args = effect_arg;
+
+	if( xQueueSend( effect_queue_handle, ( void * ) &led_strip_effect, ( TickType_t ) 0 ) != pdPASS )
 	{
-		led_strip_effect->new_led_strip_effect_t = true;
-		led_strip_effect->effect_type = effect_type;
-		if (xTaskCreate(led_strip_effect_task,
-						"strip_effect",
-						LED_STRIP_EFFECT_TASK_SIZE,
-						led_strip_effect,
-						LED_STRIP_TASK_PRIORITY-1,
-						&led_strip_effect_task_handle)
-		!= pdTRUE){
-			return ESP_FAIL;
-		}
+		ret = ESP_FAIL;
+		ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
+		return ret;
 	}
 
-    if(led_strip_effect->effect_type != effect_type){
-    	led_strip_effect->new_led_strip_effect_t = true;
-    	led_strip_effect->effect_type = effect_type;
-    }
-
-	return ESP_OK;
+	return ret;
 }
+

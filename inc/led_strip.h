@@ -17,15 +17,20 @@ extern "C" {
 
 #include <driver/rmt.h>
 #include <driver/gpio.h>
+#include <string.h>
+#include <stddef.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 
-#include <stddef.h>
+#include "esp_log.h"
 
 typedef enum effect_type_t {
     RGB = 0,
-    FADE_IN_OFF,
-    ON_FADE_OFF,
+    TIMED_FADE_IN_OFF,
+    TIMED_ON_FADE_OFF,
     BORDER_TO_CENTER,
 	CENTER_TO_BORDER,
 	COLOR,
@@ -69,15 +74,37 @@ struct led_strip_t {
     SemaphoreHandle_t access_semaphore;
 };
 
+/* Structures specific for each effect types */
+
+/* Static color effect arguments */
+struct effect_static_color_args_t {
+    struct led_color_t effect_color;
+};
+
+/* RGB effect arguments */
+struct effect_rgb_args_t {
+	enum rgb_effect_states_t rgb_effect_state;
+    uint8_t speed;
+};
+
+struct effect_timed_fade_in_off_args_t {
+	uint16_t counter;
+	uint16_t fade_in_speed;
+	uint8_t step_counter;
+    struct led_color_t effect_color;
+    struct led_color_t step_color;
+};
+
+/* General structure for effect handler*/
 struct led_strip_effect_t {
 	struct led_strip_t *led_strip;
 	effect_type_t effect_type;
-    uint8_t speed;
-    struct led_color_t *effect_color;
-    bool new_led_strip_effect_t;
+	void *effect_args;
 };
 
 extern TaskHandle_t led_strip_effect_task_handle;
+extern xQueueHandle effect_queue_handle;
+
 
 bool led_strip_init(struct led_strip_t *led_strip);
 
@@ -107,6 +134,22 @@ bool led_strip_show(struct led_strip_t *led_strip);
 bool led_strip_clear(struct led_strip_t *led_strip);
 
 /**
+  * @brief     	Initialize task to handle LED strip effects
+  *
+  * @param 		pointer to led_strip strucutre
+  * @param 		effect_type enum for pre-defined effects
+  * @param 		arguments of the effect type
+  *
+  * @return
+  *      -ESP_OK 	On success
+  *      -ESP_FAIL 	Generic code indicating failure
+  *      -ESP_ERR_INVALID_STATE if task (and led strip) has been already initialized
+  *
+  **/
+esp_err_t led_strip_init_effect_handler(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg);
+
+
+/**
   * @brief     	Initialize task to create pre-defined effects
   *
   * @param 		led_strip_effect pointer to LED effect context
@@ -121,7 +164,7 @@ bool led_strip_clear(struct led_strip_t *led_strip);
   *      -ESP_FAIL 	Generic code indicating failure
   *
   **/
-esp_err_t led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effect_type_t effect_type, uint8_t red, uint8_t green, uint8_t blue, uint8_t effect_speed);
+esp_err_t led_strip_set_effect(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg);
 
 #ifdef __cplusplus
 }
