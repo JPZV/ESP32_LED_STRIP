@@ -29,12 +29,12 @@ extern "C" {
 
 typedef enum effect_type_t {
     RGB = 0,
-    TIMED_FADE_IN_OFF,
-    TIMED_ON_FADE_OFF,
+	TIMED_ON_FADE_OFF,
+    COLOR,
+	CLEAR,
+	TIMED_FADE_IN_OFF,
     BORDER_TO_CENTER,
 	CENTER_TO_BORDER,
-	COLOR,
-	CLEAR,
 	NONE,
 }effect_type_t;
 
@@ -87,10 +87,12 @@ struct effect_rgb_args_t {
     uint8_t speed;
 };
 
-struct effect_timed_fade_in_off_args_t {
+struct effect_timed_on_fade_off_args_t {
 	uint16_t counter;
-	uint16_t fade_in_speed;
+	uint16_t off_time_ms;
+	uint16_t fade_off_speed;
 	uint8_t step_counter;
+	uint8_t fade_step;
     struct led_color_t effect_color;
     struct led_color_t step_color;
 };

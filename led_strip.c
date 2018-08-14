@@ -472,7 +472,7 @@ static void led_strip_effect_task(void *arg)
 	int data_received;
 	struct effect_rgb_args_t *effect_rgb_args = NULL;
 	struct effect_static_color_args_t *effect_static_color_args = NULL;
-	struct effect_timed_fade_in_off_args_t *effect_timed_fade_in_off_args = NULL;
+	struct effect_timed_on_fade_off_args_t *effect_timed_on_fade_off_args = NULL;
 	struct led_color_t effect_color;
 
 	memset(&led_strip_effect, 0, sizeof(struct led_strip_effect_t));
@@ -501,14 +501,14 @@ static void led_strip_effect_task(void *arg)
 								,effect_static_color_args->effect_color.green
 								,effect_static_color_args->effect_color.blue);
 						break;
-					case TIMED_FADE_IN_OFF:
-						effect_timed_fade_in_off_args = (struct effect_timed_fade_in_off_args_t *)led_strip_effect.effect_args;
+					case TIMED_ON_FADE_OFF:
+						effect_timed_on_fade_off_args = (struct effect_timed_on_fade_off_args_t *)led_strip_effect.effect_args;
 						ESP_LOGD(TAG, "Effect: TIMED_FADE_IN_OFF.\n Color = %d,%d,%d\n Fade In Time = %d\n Counter: %d"
-								,effect_timed_fade_in_off_args->effect_color.red
-								,effect_timed_fade_in_off_args->effect_color.green
-								,effect_timed_fade_in_off_args->effect_color.blue
-								,effect_timed_fade_in_off_args->fade_in_speed
-								,effect_timed_fade_in_off_args->counter);
+								,effect_timed_on_fade_off_args->effect_color.red
+								,effect_timed_on_fade_off_args->effect_color.green
+								,effect_timed_on_fade_off_args->effect_color.blue
+								,effect_timed_on_fade_off_args->fade_off_speed
+								,effect_timed_on_fade_off_args->counter);
 						break;
 					case CLEAR:
 						break;
@@ -520,7 +520,6 @@ static void led_strip_effect_task(void *arg)
         	}
         }else /*Otherwise, if there is no new data on Queue, */
         {
-
 			switch (led_strip_effect.effect_type) {
 				case RGB:
 					switch(effect_rgb_args->rgb_effect_state)
@@ -552,39 +551,68 @@ static void led_strip_effect_task(void *arg)
 					}
 					led_strip_show(led_strip_effect.led_strip);
 					vTaskDelay((10000-39*effect_rgb_args->speed)/portTICK_RATE_MS);
-
 					break;
 				case COLOR:
 					for (uint16_t index = 0; index < led_strip_effect.led_strip->led_strip_length; index++) {
 						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_static_color_args->effect_color);
 					}
 					led_strip_show(led_strip_effect.led_strip);
+					vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
 					break;
-				case TIMED_FADE_IN_OFF:
-					if( effect_timed_fade_in_off_args->effect_color.red > effect_timed_fade_in_off_args->effect_color.green){
-						if( effect_timed_fade_in_off_args->effect_color.red > effect_timed_fade_in_off_args->effect_color.blue)
-						{
-							effect_timed_fade_in_off_args->step_counter = effect_timed_fade_in_off_args->effect_color.red;
-						}else
-						{
-							effect_timed_fade_in_off_args->step_counter = effect_timed_fade_in_off_args->effect_color.blue;
-						}
+				case TIMED_ON_FADE_OFF:
+					if(effect_timed_on_fade_off_args->step_counter > (effect_timed_on_fade_off_args->fade_step -1))
+					{
+						effect_timed_on_fade_off_args->step_counter-=effect_timed_on_fade_off_args->fade_step;
+						if(effect_color.red > (effect_timed_on_fade_off_args->fade_step -1))
+							effect_color.red-=effect_timed_on_fade_off_args->fade_step;
+						if(effect_color.green > (effect_timed_on_fade_off_args->fade_step -1))
+							effect_color.green-=effect_timed_on_fade_off_args->fade_step;
+						if(effect_color.blue > (effect_timed_on_fade_off_args->fade_step -1))
+							effect_color.blue-=effect_timed_on_fade_off_args->fade_step;
 					}else
 					{
-						if( effect_timed_fade_in_off_args->effect_color.green > effect_timed_fade_in_off_args->effect_color.blue)
+						if(effect_timed_on_fade_off_args->step_counter > 0)
 						{
-							effect_timed_fade_in_off_args->step_counter = effect_timed_fade_in_off_args->effect_color.green;
+							effect_timed_on_fade_off_args->step_counter = 0;
+							effect_color.red = 0;
+							effect_color.green = 0;
+							effect_color.blue = 0;
 						}else
 						{
-							effect_timed_fade_in_off_args->step_counter = effect_timed_fade_in_off_args->effect_color.blue;
+							/* copy RGB value to current effect_color at the initial state */
+							effect_color.red = effect_timed_on_fade_off_args->effect_color.red;
+							effect_color.green = effect_timed_on_fade_off_args->effect_color.green;
+							effect_color.blue = effect_timed_on_fade_off_args->effect_color.blue;
+
+							/* step_counter selects the highest value between RGB */
+							if( effect_timed_on_fade_off_args->effect_color.red > effect_timed_on_fade_off_args->effect_color.green){
+								if( effect_timed_on_fade_off_args->effect_color.red > effect_timed_on_fade_off_args->effect_color.blue)
+								{
+									effect_timed_on_fade_off_args->step_counter = effect_timed_on_fade_off_args->effect_color.red;
+								}else
+								{
+									effect_timed_on_fade_off_args->step_counter = effect_timed_on_fade_off_args->effect_color.blue;
+								}
+							}else
+							{
+								if( effect_timed_on_fade_off_args->effect_color.green > effect_timed_on_fade_off_args->effect_color.blue)
+								{
+									effect_timed_on_fade_off_args->step_counter = effect_timed_on_fade_off_args->effect_color.green;
+								}else
+								{
+									effect_timed_on_fade_off_args->step_counter = effect_timed_on_fade_off_args->effect_color.blue;
+								}
+							}
+							ESP_LOGD(TAG, "step_counter = %d", effect_timed_on_fade_off_args->step_counter);
 						}
 					}
-
-
 					for (uint16_t index = 0; index < led_strip_effect.led_strip->led_strip_length; index++) {
-						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_timed_fade_in_off_args->step_color);
+						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_color);
 					}
 					led_strip_show(led_strip_effect.led_strip);
+					vTaskDelay(effect_timed_on_fade_off_args->fade_off_speed/portTICK_RATE_MS);
+					if(effect_timed_on_fade_off_args->step_counter == 0)
+						vTaskDelay(effect_timed_on_fade_off_args->off_time_ms/portTICK_RATE_MS);
 					break;
 				case CLEAR:
 					memset(&effect_color, 0, sizeof(struct led_color_t));
@@ -592,13 +620,13 @@ static void led_strip_effect_task(void *arg)
 						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_color);
 					}
 					led_strip_show(led_strip_effect.led_strip);
+					vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
 					break;
 
 				default:
 					vTaskDelete(NULL);
 					break;
 			};
-			vTaskDelay(LED_STRIP_REFRESH_PERIOD_MS / portTICK_PERIOD_MS);
         }
     }
 
