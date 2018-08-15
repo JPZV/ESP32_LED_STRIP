@@ -27,12 +27,14 @@ extern "C" {
 
 #include "esp_log.h"
 
+#define max(a,b) ((a)>(b)?(a):(b))
+
 typedef enum effect_type_t {
     RGB = 0,
-	TIMED_ON_FADE_OFF,
+	TIMED_ON_FADE_OUT,
+	TIMED_FADE_IN_OFF,
     COLOR,
 	CLEAR,
-	TIMED_FADE_IN_OFF,
     BORDER_TO_CENTER,
 	CENTER_TO_BORDER,
 	NONE,
@@ -87,14 +89,22 @@ struct effect_rgb_args_t {
     uint8_t speed;
 };
 
-struct effect_timed_on_fade_off_args_t {
+struct effect_timed_on_fade_out_args_t {
 	uint16_t counter;
 	uint16_t off_time_ms;
-	uint16_t fade_off_speed;
+	uint16_t fade_out_speed;
 	uint8_t step_counter;
 	uint8_t fade_step;
     struct led_color_t effect_color;
-    struct led_color_t step_color;
+};
+
+struct effect_timed_fade_in_off_args_t {
+	uint16_t counter;
+	uint16_t on_time_ms;
+	uint16_t fade_in_speed;
+	uint8_t step_counter;
+	uint8_t fade_step;
+    struct led_color_t effect_color;
 };
 
 /* General structure for effect handler*/
@@ -102,6 +112,7 @@ struct led_strip_effect_t {
 	struct led_strip_t *led_strip;
 	effect_type_t effect_type;
 	void *effect_args;
+	uint8_t restart_effect;
 };
 
 extern TaskHandle_t led_strip_effect_task_handle;
@@ -167,6 +178,19 @@ esp_err_t led_strip_init_effect_handler(struct led_strip_t *led_strip, effect_ty
   *
   **/
 esp_err_t led_strip_set_effect(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg);
+
+
+/**
+  * @brief     	Stop and Delete the task to handle LED strip effects and clears the LED strip
+  *
+  * @param 		pointer to led_strip strucutre
+  *
+  * @return
+  *      -ESP_OK 	On success
+  *      -ESP_ERR_NOT_FOUND		If effect queue or task handler was not found
+  *
+  **/
+esp_err_t led_strip_delete_effect_handler(struct led_strip_t *led_strip);
 
 #ifdef __cplusplus
 }
