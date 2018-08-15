@@ -474,6 +474,7 @@ static void led_strip_effect_task(void *arg)
 	struct effect_static_color_args_t *effect_static_color_args = NULL;
 	struct effect_timed_on_fade_off_args_t *effect_timed_on_fade_off_args = NULL;
 	struct led_color_t effect_color;
+	uint16_t index;
 
 	memset(&led_strip_effect, 0, sizeof(struct led_strip_effect_t));
 	memset(&received_led_strip_effect_from_queue, 0, sizeof(struct led_strip_effect_t));
@@ -577,6 +578,7 @@ static void led_strip_effect_task(void *arg)
 							effect_color.red = 0;
 							effect_color.green = 0;
 							effect_color.blue = 0;
+							ESP_LOGW(TAG, "Erasing effect_color values...");
 						}else
 						{
 							/* copy RGB value to current effect_color at the initial state */
@@ -606,13 +608,15 @@ static void led_strip_effect_task(void *arg)
 							ESP_LOGD(TAG, "step_counter = %d", effect_timed_on_fade_off_args->step_counter);
 						}
 					}
-					for (uint16_t index = 0; index < led_strip_effect.led_strip->led_strip_length; index++) {
+					for (index = 0; index < led_strip_effect.led_strip->led_strip_length; index++) {
 						led_strip_set_pixel_color(led_strip_effect.led_strip, index, &effect_color);
 					}
 					led_strip_show(led_strip_effect.led_strip);
-					vTaskDelay(effect_timed_on_fade_off_args->fade_off_speed/portTICK_RATE_MS);
 					if(effect_timed_on_fade_off_args->step_counter == 0)
+					{
 						vTaskDelay(effect_timed_on_fade_off_args->off_time_ms/portTICK_RATE_MS);
+					}
+					vTaskDelay((effect_timed_on_fade_off_args->fade_off_speed + LED_STRIP_REFRESH_PERIOD_MS)/portTICK_RATE_MS);
 					break;
 				case CLEAR:
 					memset(&effect_color, 0, sizeof(struct led_color_t));
