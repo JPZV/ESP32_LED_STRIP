@@ -25,52 +25,60 @@ make menuconfig
 make menuconfig 
 -> ESP32 LED Strip Basic Example 
 ```
-###Library Functions
+### Library Functions
 
 All functions for initializing and setting colors are located in led_strip.h. Right now the library supports:
 
-Initialization of an led strip which initializes the RMT peripheral and starts a task for driving LEDs
+- Initialization of an led strip which initializes the RMT peripheral and starts a task for driving LEDs:
 ```c
 bool led_strip_init(struct led_strip_t *led_strip);
 ```
 
-Setting individual led colors on an LED strip
+
+- Setting individual led colors on an LED strip:
 ```c
 bool led_strip_set_pixel_color(struct led_strip_t *led_strip, uint32_t pixel_num, struct led_color_t *color);
 bool led_strip_set_pixel_rgb(struct led_strip_t *led_strip, uint32_t pixel_num, uint8_t red, uint8_t green, uint8_t blue);
 ```
 
-Updates the LED strip being shown. This switches the buffer currently being used to display the LED strips
+
+- Updates the LED strip being shown. This switches the buffer currently being used to display the LED strips:
 ```c
 bool led_strip_show(struct led_strip_t *led_strip);
 ```
 
-Get the color of a pixel on the strip **currently being shown**. For instance, if you want to update the color of the led strip based on the color that's currently being shown, use this function.
+
+- Get the color of a pixel on the strip **currently being shown**. For instance, if you want to update the color of the led strip based on the color that's currently being shown, use this function:
 ```c
 bool led_strip_get_pixel_color(struct led_strip_t *led_strip, uint32_t pixel_num, struct led_color_t *color);
 ```
-Function that initializes a task for manipulating LED effects. It creates the a task that reads effect data from a Queue. This function already shows a effect type (including its arguments) after initialization. 
+
+
+- Function that initializes a task for manipulating LED effects. It creates the a task that reads effect data from a Queue. This function already shows a effect type (including its arguments) after initialization. Check basic_example. 
 ```c
 led_strip_init_effect_handler(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg);
 ```
 
-Function that sets a new effect. Check led_strip_effect at led_strip.h for more details (it contains effect_type_t enum for already implemented effects and data structures for each effect). 
+
+- Function that sets a new effect. Check led_strip_effect at led_strip.h for more details (it contains effect_type_t enum for already implemented effects and data structures for each effect). Check basic_example. 
 ```c
 led_strip_set_effect(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg);
 ```
 
-Function to delete effect handler and queue
+
+- Function to delete effect handler and queue. Check basic_example.
 ```c
 led_strip_delete_effect_handler(struct led_strip_t *led_strip);
 ```
 
-Clear the led strip and 
+
+- Clear the led strip. Check basic_example. 
 ```c
 bool led_strip_clear(struct led_strip_t *led_strip)
 ```
 
 ## Limitations
-1. Right now the library only supports the timing for WS2812/WS2812B, SK6812 and APA106 LED strips. Tested with WS2812 and APA106.
+1. Right now the library only supports the timing for WS2812/WS2812B, SK6812 and APA106 LED strips. 
 2. Only supports 30ms refresh period. Will add functionality to make this configurable in the future.
 
 ## Future Goals of Library (in somewhat prioritized order)
