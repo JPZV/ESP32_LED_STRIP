@@ -115,9 +115,6 @@ struct led_strip_effect_t {
 	uint8_t restart_effect;
 };
 
-extern TaskHandle_t led_strip_effect_task_handle;
-extern xQueueHandle effect_queue_handle;
-
 
 bool led_strip_init(struct led_strip_t *led_strip);
 

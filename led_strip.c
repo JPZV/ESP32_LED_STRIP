@@ -57,6 +57,9 @@
 
 const char *TAG = "LED_STRIP";
 
+static TaskHandle_t led_strip_effect_task_handle = NULL;
+static xQueueHandle effect_queue_handle = NULL;
+
 // Function pointer for generating waveforms based on different LED drivers
 typedef void (*led_fill_rmt_items_fn)(struct led_color_t *led_strip_buf, rmt_item32_t *rmt_items, uint32_t led_strip_length);
 
@@ -729,8 +732,6 @@ static void led_strip_effect_task(void *arg)
     vTaskDelete(NULL);
 }
 
-TaskHandle_t led_strip_effect_task_handle = NULL;
-xQueueHandle effect_queue_handle = NULL;
 
 /**
   * @brief     	Initialize task to handle LED strip effects
@@ -755,13 +756,15 @@ esp_err_t led_strip_init_effect_handler(struct led_strip_t *led_strip, effect_ty
 	{
 		if( (effect_queue_handle = xQueueCreate(10, sizeof(struct led_strip_effect_t))) == pdFALSE )
 		{
+			ret = ESP_FAIL;
 			ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
-			return ret = ESP_FAIL;
+			return ret;
 		}
 	}else /* If effect queue was previously created, indicates an error */
 	{
+		ret = ESP_ERR_INVALID_STATE;
 		ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
-		return ret = ESP_ERR_INVALID_STATE;
+		return ret;
 	}
 
 	initial_led_strip_effect.led_strip = led_strip;

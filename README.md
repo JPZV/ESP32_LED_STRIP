@@ -49,10 +49,19 @@ Get the color of a pixel on the strip **currently being shown**. For instance, i
 ```c
 bool led_strip_get_pixel_color(struct led_strip_t *led_strip, uint32_t pixel_num, struct led_color_t *color);
 ```
-
-Function that sets a task for manipulating LED effects. Check led_strip_effect at led_strip.h for more details (it contains a pointer to an already initilized led_strip_t struct). 
+Function that initializes a task for manipulating LED effects. It creates the a task that reads effect data from a Queue. This function already shows a effect type (including its arguments) after initialization. 
 ```c
-led_strip_set_effect(struct led_strip_effect_t *led_strip_effect, effect_type_t effect_type, struct led_color_t *effect_color, uint8_t effect_speed);
+led_strip_init_effect_handler(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg);
+```
+
+Function that sets a new effect. Check led_strip_effect at led_strip.h for more details (it contains effect_type_t enum for already implemented effects and data structures for each effect). 
+```c
+led_strip_set_effect(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg);
+```
+
+Function to delete effect handler and queue
+```c
+led_strip_delete_effect_handler(struct led_strip_t *led_strip);
 ```
 
 Clear the led strip and 

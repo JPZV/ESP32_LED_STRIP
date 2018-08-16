@@ -5,6 +5,7 @@
     Last modified: 06/02/2018
 
     ------------------------------------------------------------------------- */
+#include <stdio.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -16,13 +17,43 @@
 #include "led_strip.h"
 #include "sdkconfig.h"
 
-#include <stdio.h>
 
-#define LED_STRIP_LENGTH 6U
+static const char *TAG = "LED";
+
+struct effect_rgb_args_t rgb_effect = {
+	.rgb_effect_state = 0,
+	.speed = 255,
+};
+
+struct effect_static_color_args_t static_color = {
+	.effect_color.red = 0,
+	.effect_color.green = 0,
+	.effect_color.blue = 0,
+};
+
+struct effect_timed_on_fade_out_args_t effect_timed_on_fade_out = {
+	.counter = 0,
+	.off_time_ms = 250,
+	.fade_out_speed = 0,
+	.step_counter = 0,
+	.fade_step = 2,
+    .effect_color = {0, 0, 0},
+};
+
+
+struct effect_timed_fade_in_off_args_t effect_timed_fade_in_off = {
+	.counter = 0,
+	.on_time_ms = 250,
+	.fade_in_speed = 0,
+	.step_counter = 0,
+	.fade_step = 2,
+    .effect_color = {0, 0, 0},
+};
+
+
 
 struct led_strip_t led_strip;
 struct led_strip_effect_t led_strip_effect;
-struct led_color_t led_effect_color;
 
 extern void main_led_task(void *args);
 
@@ -38,60 +69,121 @@ extern void main_led_task(void *args);
   **/
 esp_err_t initialize_LED(void)
 {
+	esp_err_t ret = ESP_OK;
 
 	static struct led_color_t led_strip_buf_1[CONFIG_LED_STRIP_LENGTH];
 	static struct led_color_t led_strip_buf_2[CONFIG_LED_STRIP_LENGTH];
+
 
 	led_strip.rgb_led_type = CONFIG_RGB_LED_TYPE;
 	led_strip.rmt_channel = CONFIG_RMT_CHANNEL;
 	led_strip.gpio = CONFIG_GPIO_NUM;
 	led_strip.led_strip_buf_1 = led_strip_buf_1;
 	led_strip.led_strip_buf_2 = led_strip_buf_2;
-	led_strip.led_strip_length = LED_STRIP_LENGTH;
+	led_strip.led_strip_length = CONFIG_LED_STRIP_LENGTH;
 	led_strip.access_semaphore = xSemaphoreCreateBinary();
 
-	led_strip_effect.led_strip = &led_strip;
-
 	//TODO: turn led_strip_init return into a esp_err_t indicating ESP-IDF error code
-	if(!led_strip_init(led_strip_effect.led_strip)){
+	if( (led_strip_init(&led_strip)) != true){
+		ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
 		return ESP_FAIL;
 	}
+
+	if( (ret = led_strip_init_effect_handler(&led_strip, CLEAR, NULL)) != ESP_OK)
+	{
+		ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
+		return ret;
+	}
+
 	return ESP_OK;
 }
 
 void main_led_task(void *pv)
 {
 	ESP_ERROR_CHECK( initialize_LED() );
-	led_effect_color.red = 0;
-	led_effect_color.green = 0;
-	led_effect_color.blue = 0;
+	ESP_LOGI(TAG, "Initializing effect handler...");
+	vTaskDelay(2000 / portTICK_PERIOD_MS);														//Wait for 2s
+
 	while(true){
-		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip_effect, RGB, led_effect_color.red, led_effect_color.green, led_effect_color.blue, 255) );	//Set RGB rounding effect at max speed
-		vTaskDelay(6000 / portTICK_PERIOD_MS);														//Wait for 6s
-		led_strip_clear(led_strip_effect.led_strip);												//Clear LED Strip
-		vTaskDelay(6000 / portTICK_PERIOD_MS);														//Wait for 6s
-		//Set white color (RGB=[255,255,255])
-		led_effect_color.red = 55;
-		led_effect_color.green = 55;
-		led_effect_color.blue = 55;
-		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip_effect, RGB, led_effect_color.red, led_effect_color.green, led_effect_color.blue, 255) );	//Set white color
-		vTaskDelay(6000 / portTICK_PERIOD_MS);														//Wait for 6s
-		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip_effect, CLEAR, led_effect_color.red, led_effect_color.green, led_effect_color.blue, 255) );	//Set white color
+		ESP_LOGI(TAG, "Setting Red, Green and Blue of static color effect to 0...");
+		static_color.effect_color.red = 0;
+		static_color.effect_color.green = 0;
+		static_color.effect_color.blue = 0;
+
+		ESP_LOGI(TAG, "Setting Red of static color effect to 255...");
+		static_color.effect_color.red = 255;
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, COLOR, &static_color) );					//Set full red color
+		ESP_LOGI(TAG, "LED is full red...");
+
 		vTaskDelay(2000 / portTICK_PERIOD_MS);														//Wait for 2s
+		ESP_LOGI(TAG, "Setting Green of static color effect to 255...");
+		static_color.effect_color.green = 255;
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, COLOR, &static_color) );					//Set full red and green color (yellow)
+		ESP_LOGI(TAG, "LED is full yellow...");
+
+		vTaskDelay(2000 / portTICK_PERIOD_MS);														//Wait for 2s
+		ESP_LOGI(TAG, "Setting Blue of static color effect to 255...");
+		static_color.effect_color.blue = 255;
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, COLOR, &static_color) );					//Set full red, green and blue color (white)
+		ESP_LOGI(TAG, "LED is full white...");
+		vTaskDelay(2000 / portTICK_PERIOD_MS);														//Wait for 2s
+
+		ESP_LOGI(TAG, "Setting RGB switching effect at max speed...");
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, RGB, &rgb_effect) );						//Set RGB switching color
+		vTaskDelay(2000 / portTICK_PERIOD_MS);														//Wait for 2s
+
+		ESP_LOGI(TAG, "Setting fade-out effect: Red = 20 for two times...");
+		effect_timed_on_fade_out.counter = 2;														//Execute for two times
+		effect_timed_on_fade_out.effect_color.red = 20;												//Starts red ON (20/255)
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, TIMED_ON_FADE_OUT, &effect_timed_on_fade_out) );
+		vTaskDelay(2000 / portTICK_PERIOD_MS);														//Wait for 2s
+
+		ESP_LOGI(TAG, "Setting fade-in effect: Red = 20 for two times...");
+		effect_timed_fade_in_off.counter = 2;														//Execute for two times
+		effect_timed_fade_in_off.effect_color.red = 20;												//Starts red off until (20/255)
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, TIMED_FADE_IN_OFF, &effect_timed_fade_in_off) );
+		vTaskDelay(2000 / portTICK_PERIOD_MS);														//Wait for 2s
+
+		ESP_LOGI(TAG, "Setting fade-out effect: Red, Green and Blue = 50 until next led_strip_set_effect command...");
+		effect_timed_on_fade_out.counter = 0;														//Execute until new led_strip_set_effect or led_strip_clear
+		effect_timed_on_fade_out.effect_color.green = 50;											//Starts green ON (50/255)
+		effect_timed_on_fade_out.effect_color.blue = 50;											//Starts blue ON (50/255)
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, TIMED_ON_FADE_OUT, &effect_timed_on_fade_out) );
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+		ESP_LOGI(TAG, "Setting fade-in effect: Red, Green and Blue = 50 until next led_strip_set_effect command...");
+		effect_timed_fade_in_off.counter = 0;														//Execute until new led_strip_set_effect or led_strip_clear
+		effect_timed_fade_in_off.effect_color.green = 50;											//Starts green off until (50/255)
+		effect_timed_fade_in_off.effect_color.blue = 50;											//Starts blue off until (50/255)
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, TIMED_FADE_IN_OFF, &effect_timed_fade_in_off) );
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+		ESP_LOGI(TAG, "LED is full white...");
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, COLOR, &static_color) );					//Set full red, green and blue color (white) again
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+		ESP_LOGI(TAG, "Clearing LED strip with led_strip_clear...");
+		led_strip_clear(&led_strip);																//Clears the led_strip.
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+		ESP_LOGI(TAG, "LED is full white...");
+		ESP_ERROR_CHECK( led_strip_set_effect(&led_strip, COLOR, &static_color) );					//Set full red, green and blue color (white) again
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+		ESP_LOGI(TAG, "Deleting effect handler...");
+		ESP_ERROR_CHECK( led_strip_delete_effect_handler(&led_strip) );								//Delete effect handler task
 	}
 }
 
 void app_main(void)
 {
     nvs_flash_init();
-    TaskHandle_t main_task_handle;
-	BaseType_t task_created = xTaskCreate(main_led_task,
-											"main_led_task",
-											ESP_TASK_MAIN_STACK,
-											NULL,
-											ESP_TASK_MAIN_PRIO,
-											&main_task_handle);
-	(void)task_created;
-	vTaskDelete(NULL);
+    esp_err_t ret = ESP_OK;
+    TaskHandle_t main_task_handle = NULL;
+
+    if( (ret = xTaskCreate(main_led_task, "main_led_task", 2048, NULL, 8, &main_task_handle)) != pdPASS){
+		ESP_LOGE(TAG, "Error in %s, line %d: %s in function %s", __FILE__, __LINE__, esp_err_to_name(ret), __func__);
+	}
+
 }
 
