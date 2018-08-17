@@ -115,6 +115,7 @@ struct led_strip_effect_t {
 	uint8_t restart_effect;
 };
 
+struct led_strip_effect_t curent_led_strip_effect;
 
 bool led_strip_init(struct led_strip_t *led_strip);
 
@@ -175,6 +176,19 @@ esp_err_t led_strip_init_effect_handler(struct led_strip_t *led_strip, effect_ty
   *
   **/
 esp_err_t led_strip_set_effect(struct led_strip_t *led_strip, effect_type_t effect_type, void *effect_arg);
+
+
+/**
+  * @brief     	Get current effect being showed
+  *
+  * @param 		led_strip_effect pointer to LED effect context
+  *
+  * @return
+  *      -NULL 	If effect handler is not being executed
+  *      -led_strip_effect structure with current data
+  *
+  **/
+struct led_strip_effect_t led_strip_get_effect(struct led_strip_t *led_strip_to_check);
 
 
 /**
