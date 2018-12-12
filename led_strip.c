@@ -17,7 +17,7 @@
 
 #include "led_strip.h"
 
-#define LED_STRIP_TASK_SIZE             configMINIMAL_STACK_SIZE
+#define LED_STRIP_TASK_SIZE             2*1024
 #define LED_STRIP_TASK_PRIORITY         (configMAX_PRIORITIES - 1)
 
 #define LED_STRIP_REFRESH_PERIOD_MS     (30U) // TODO: add as parameter to led_strip_init
@@ -25,7 +25,7 @@
 
 #define LED_STRIP_NUM_RMT_ITEMS_PER_LED (24U) // Assumes 24 bit color for each led
 
-#define LED_STRIP_EFFECT_TASK_SIZE     	2048
+#define LED_STRIP_EFFECT_TASK_SIZE     	4*1024
 #define LED_STRIP_EFFECT_TASK_PRIORITY 	(configMAX_PRIORITIES - 2)
 
 // RMT Clock source is @ 80 MHz. Dividing it by 8 gives us 10 MHz frequency, or 100ns period.
