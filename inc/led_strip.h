@@ -20,12 +20,14 @@ extern "C" {
 #include <string.h>
 #include <stddef.h>
 
+#include "esp_log.h"
+#include "esp_timer.h"
+
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
-#include "esp_log.h"
 
 #define max(a,b) ((a)>(b)?(a):(b))
 
@@ -108,14 +110,14 @@ struct effect_timed_fade_in_off_args_t {
 };
 
 /* General structure for effect handler*/
-struct led_strip_effect_t {
+typedef struct {
 	struct led_strip_t *led_strip;
 	effect_type_t effect_type;
 	void *effect_args;
 	uint8_t restart_effect;
-};
+} led_strip_effect_t;
 
-struct led_strip_effect_t curent_led_strip_effect;
+extern led_strip_effect_t current_led_strip_effect;
 
 bool led_strip_init(struct led_strip_t *led_strip);
 
@@ -188,7 +190,7 @@ esp_err_t led_strip_set_effect(struct led_strip_t *led_strip, effect_type_t effe
   *      -led_strip_effect structure with current data
   *
   **/
-struct led_strip_effect_t led_strip_get_effect(struct led_strip_t *led_strip_to_check);
+led_strip_effect_t led_strip_get_effect(struct led_strip_t *led_strip_to_check);
 
 
 /**
