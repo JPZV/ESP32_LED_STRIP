@@ -287,7 +287,7 @@ static bool led_strip_init_rmt(struct led_strip_t *led_strip)
         .channel = led_strip->rmt_channel,
         .clk_div = LED_STRIP_RMT_CLK_DIV,
         .gpio_num = led_strip->gpio,
-        .mem_block_num = 1,
+        .mem_block_num = 4,
         .tx_config = {
             .loop_en = false,
             .carrier_freq_hz = 100, // Not used, but has to be set to avoid divide by 0 err
